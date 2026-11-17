@@ -138,7 +138,7 @@ input[type=file]{font-size:12px;max-width:100%}
   <div class="card pane" id="pane-a" hidden>
     <h2>Voice and sound</h2>
     <label class="chk"><input type="checkbox" id="v-on" checked> Voice reads each question, then the answer</label>
-    <label class="chk"><input type="checkbox" id="s-sfx" checked> Countdown ticks and answer chime</label>
+    <label class="chk"><input type="checkbox" id="s-sfx" checked> Sound effects: question whoosh, option pops, countdown ticks, answer chime</label>
     <label for="g-key">Gemini API key (voice only)</label><input type="password" id="g-key" autocomplete="off" placeholder="From aistudio.google.com">
     <div class="g2">
       <div><label for="g-voice">Voice</label><select id="g-voice"><option>Kore</option><option>Charon</option><option>Puck</option><option>Fenrir</option><option>Aoede</option><option>Orus</option><option>Zephyr</option><option>Leda</option><option>Sulafat</option><option>Gacrux</option><option>Algieba</option><option>Alnilam</option></select></div>
@@ -326,6 +326,11 @@ function playBuf(b,at){const s=ac.createBufferSource();s.buffer=b;out(s);s.start
 function beep(f,at,d,v){const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime+at;o.frequency.value=f;
   g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);
   o.connect(g);out(g);o.start(t);o.stop(t+d+.05);srcs.push(o);}
+// Pitch sweep: used for the question "whoosh" and the option "pop"
+function sweep(f1,f2,at,d,v,type){const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime+at;o.type=type||'sine';
+  o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(f2,t+d);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.015);g.gain.exponentialRampToValueAtTime(.001,t+d);
+  o.connect(g);out(g);o.start(t);o.stop(t+d+.05);srcs.push(o);}
 function stopAudio(){srcs.forEach(s=>{try{s.stop()}catch(e){}});srcs=[];}
 function muteUI(){$('mute').innerHTML=(muted?ICO.off:ICO.on)+(muted?'Sound off':'Sound on');}
 $('mute').onclick=()=>{muted=!muted;if(spk)spk.gain.value=muted?0:1;muteUI()};
@@ -393,6 +398,12 @@ $('g-model').addEventListener('change',()=>store('noor_gemini_model',$('g-model'
 function sched(s,off){
   const sx=$('s-sfx').checked;
   if(s.type==='q'){
+    if(sx){
+      // Question appears: rising whoosh + soft chime (works with voice off)
+      sweep(250,900,off,.3,.22,'sawtooth');sweep(660,990,off+.18,.35,.16,'sine');
+      // Each option appears: a pop that climbs in pitch (matches the .6s + .3s timing in drawQ)
+      Q[s.i].options.forEach((_,k)=>{const at=off+.6+k*.3;sweep(420+k*90,780+k*90,at,.14,.22,'triangle');});
+    }
     if(s.aq)playBuf(s.aq,off+.5);
     if(sx){for(let k=0;k<s.cd;k++)beep(k===s.cd-1?1320:880,off+s.read+k,.12,.25);
       const a=off+s.read+s.cd;beep(659,a,.35,.3);beep(988,a+.12,.5,.3);}
